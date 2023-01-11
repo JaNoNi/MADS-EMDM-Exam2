@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Optional, Union
 
 import matplotlib as mpl
 import matplotlib.lines as mlines
@@ -37,6 +37,7 @@ def make_legend(_dict, size: int, loc: str):
 def draw_nodes(
     G,
     pos,
+    ax,
     node_list: list,
     size_dict: dict,
     add_labels: bool,
@@ -44,14 +45,14 @@ def draw_nodes(
     color: Union[str, list] = "C0",
     node_size_reduction_factor=1,
     node_alpha=0.5,
-    font_size=4,
+    font_size=5,
     font_color="k",
     style=None,
     zorder=None,
 ):
     sizes = [size_dict[node] / node_size_reduction_factor for node in node_list]
     node_collection = nx.draw_networkx_nodes(
-        G, pos, nodelist=node_list, alpha=node_alpha, node_size=sizes, node_color=color
+        G, pos, nodelist=node_list, alpha=node_alpha, node_size=sizes, node_color=color, ax=ax
     )
 
     if zorder:
@@ -60,7 +61,7 @@ def draw_nodes(
     if add_labels:
         labels = {node: label_dict.get(node, "") for node in node_list}
         texts = nx.draw_networkx_labels(
-            G, pos, labels=labels, font_size=font_size, font_color=font_color
+            G, pos, labels=labels, font_size=font_size, font_color=font_color, ax=ax
         )
 
     if style is not None and add_labels:
@@ -73,24 +74,30 @@ def draw_graph(
     pos,
     nodes_draw_list: list[list],
     nodes_labels_list: list[dict],
-    nodes_font_colors: list,
     nodes_sizes_list: list[dict],
-    figsize: tuple = (10, 10),
+    nodes_font_colors: list = ["#CEECFF", "#FFD0FD"],
+    figsize: tuple = (7, 7),
+    ax: Optional[plt.Axes] = None,
     add_labels: bool = False,
-    dark_mode: bool = False,
-    dpi: int = 500,
+    dark_mode: bool = True,
+    dpi: int = 140,
     node_colors: dict = None,
-    edge_alpha: float = 0.2,
-    node_alpha: float = 0.5,
+    node_alpha: float = 0.6,
+    edge_alpha: float = 0.15,
     node_size_reduction_factor=1,
-    edge_linewidth_reduction_factor=100,
-    curved_edges: bool = False,
+    edge_linewidth_reduction_factor=1,
+    curved_edges: bool = True,
     legend_labels: dict = None,
     legend_size: int = 5,
     legend_loc: str = "best",
     **kwargs,
 ):
-    plt.figure(figsize=figsize, dpi=dpi)
+    if ax is None:
+        _, ax = plt.subplots(1, 1, figsize=figsize, dpi=dpi)
+        no_ax_input = True
+    else:
+        no_ax_input = False
+    # plt.figure(figsize=figsize, dpi=dpi)
     if dark_mode:
         plt.style.use("cyberpunk")
         edge_color = "#A47FFF"
@@ -111,6 +118,7 @@ def draw_graph(
         draw_nodes(
             G,
             pos,
+            ax=ax,
             node_list=nodes_draw,
             size_dict=node_sizes,
             add_labels=add_labels,
@@ -158,20 +166,25 @@ def draw_graph(
                     edgelist=[(node1, node2)],
                     alpha=edge_alpha,
                     width=linewidth,
+                    ax=ax,
                     **additional_edge_args,
                 )
     # Don't draw marker edges for nodes
-    for p in plt.gca().collections:
+    for p in ax.collections:
         if type(p) == mpl.collections.PathCollection:
             p.set_edgecolors("None")
 
     if dark_mode:
-        plt.gcf().set_facecolor(face_color)
-    if legend_labels is not None:
+        ax.set_facecolor(face_color)
+    if legend_labels is not None and no_ax_input:
         make_legend(legend_labels, loc=legend_loc, size=legend_size)
-    plt.axis("off")
+    ax.axis("off")
     plt.tight_layout()
-    plt.show()
+    if no_ax_input:
+        plt.gcf().set_facecolor(face_color)
+        plt.show()
+    else:
+        return face_color
 
 
 def draw_graph_filtered(
@@ -181,24 +194,26 @@ def draw_graph_filtered(
     nodes_sizes_list: list[dict],
     min_sizes: list[int],
     min_sizes_labels: list[int],
-    figsize: tuple = (10, 10),
+    nodes_labels_list: Optional[list[dict]] = None,
     **kwargs,
 ):
     nodes_draw_list = []
-    nodes_label_list = []
-    for _nodes, _sizes, _min_size, _min_size_label in zip(
-        nodes_list, nodes_sizes_list, min_sizes, min_sizes_labels
+    _nodes_labels_list = []
+    for idx, (_nodes, _sizes, _min_size, _min_size_label) in enumerate(
+        zip(nodes_list, nodes_sizes_list, min_sizes, min_sizes_labels)
     ):
         nodes_draw_list.append([__node for __node in _nodes if _sizes[__node] >= _min_size])
-        nodes_label_list.append(
-            {__node: __node for __node in _nodes if _sizes[__node] >= _min_size_label}
-        )
-    draw_graph(
+        if nodes_labels_list is not None and nodes_labels_list[idx] is not None:
+            _nodes_labels_list.append(nodes_labels_list[idx])
+        else:
+            _nodes_labels_list.append(
+                {__node: __node for __node in _nodes if _sizes[__node] >= _min_size_label}
+            )
+    return draw_graph(
         G,
         pos,
-        figsize=figsize,
         nodes_draw_list=nodes_draw_list,
-        nodes_labels_list=nodes_label_list,
+        nodes_labels_list=_nodes_labels_list,
         nodes_sizes_list=nodes_sizes_list,
         **kwargs,
     )
